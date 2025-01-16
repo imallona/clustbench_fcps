@@ -98,10 +98,13 @@ do_fcps <- function(data, Ks, method){
 
         y_pred <- as.integer(do.call(fun, args)[["Cls"]])
 
-        if (min(y_pred) > 0 && max(y_pred) == k)            
+        if (min(y_pred) > 0 && max(y_pred) == k) {
             res[[as.character(k)]] <- as.integer(y_pred)
-        else 
-            res[[as.character(k)]] <- rep(NA, length(y_pred))
+        }
+        else {
+            ## error means all are assigned to the same cluster
+            res[[as.character(k)]] <- rep(k, length(y_pred))
+        }
     }
     return(do.call('cbind.data.frame', res))
 }
