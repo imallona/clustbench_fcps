@@ -96,15 +96,12 @@ do_fcps <- function(data, Ks, method){
         
         args <- c(args, ClusterNo=k, case[-1])
 
-        tryCatch({
-            y_pred <- as.integer(do.call(fun, args)[["Cls"]])
+        y_pred <- as.integer(do.call(fun, args)[["Cls"]])
 
-            stopifnot(y_pred > 0, max(y_pred) == k)
-            
+        if (min(y_pred) > 0 && max(y_pred) == k)            
             res[[as.character(k)]] <- as.integer(y_pred)
-        }, error= function(x) {
+        else 
             res[[as.character(k)]] <- rep(NA, length(y_pred))
-        })
     }
     return(do.call('cbind.data.frame', res))
 }
