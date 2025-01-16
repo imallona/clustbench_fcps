@@ -19,7 +19,7 @@ parser$add_argument('--data.true_labels',
                     help='gz-compressed textfile with the true labels; used to select a range of ks.')
 parser$add_argument("--output_dir", "-o", dest="output_dir", type="character", help="output directory where files will be saved", default=getwd())
 parser$add_argument("--name", "-n", dest="name", type="character", help="name of the dataset")
-parser$add_argument("--method", "-m", dest="method", type="character", help="name of the dataset")
+parser$add_argument("--method", "-m", dest="method", type="character", help="method")
 
 args <- parser$parse_args()
 
@@ -96,19 +96,18 @@ do_fcps <- function(data, Ks, method){
         
         args <- c(args, ClusterNo=k, case[-1])
 
-        ## tryCatch({
+        tryCatch({
             y_pred <- as.integer(do.call(fun, args)[["Cls"]])
 
-            ## stopifnot(y_pred > 0, max(y_pred) == k)
+            stopifnot(y_pred > 0, max(y_pred) == k)
             
             res[[as.character(k)]] <- as.integer(y_pred)
-        ## }, error= function(x) {
-        ##     res[[as.character(k)]] <- rep(NA, length(y_pred))
-        ## })
+        }, error= function(x) {
+            res[[as.character(k)]] <- rep(NA, length(y_pred))
+        })
     }
     return(do.call('cbind.data.frame', res))
 }
-
 
 truth = load_labels(args[['data.true_labels']])
 
