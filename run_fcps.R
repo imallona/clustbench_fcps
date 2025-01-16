@@ -6,19 +6,20 @@
 ## being true number of clusters `k` and tested range `k plusminus 2`
 
 library(argparse)
+library(FCPS)
 
 parser <- ArgumentParser(description="FCPS caller")
 
 
-parser.add_argument('--data.matrix',
+parser$add_argument('--data.matrix',
                     type="character",
                     help='gz-compressed textfile containing the comma-separated data to be clustered.')
-parser.add_argument('--data.true_labels',
+parser$add_argument('--data.true_labels',
                     type="character",
                     help='gz-compressed textfile with the true labels; used to select a range of ks.')
 parser$add_argument("--output_dir", "-o", dest="output_dir", type="character", help="output directory where files will be saved", default=getwd())
 parser$add_argument("--name", "-n", dest="name", type="character", help="name of the dataset")
-parser$add_argument("--method", "-n", dest="method", type="character", help="name of the dataset")
+parser$add_argument("--method", "-m", dest="method", type="character", help="name of the dataset")
 
 args <- parser$parse_args()
 
@@ -66,9 +67,11 @@ VALID_METHODS <- list(
 
 
 load_labels <- function(data_file) {
+    (fd <- read.table(gzfile(data_file), header = FALSE)$V1)
 }
 
 load_dataset <- function(data_file) {
+    (fd <- read.table(gzfile(data_file), header = FALSE))
 }
 
 
@@ -81,34 +84,42 @@ do_fcps <- function(data, Ks, method){
 
     res <- list()
 
-    case <- VALID_METHODS[method]
+    case <- VALID_METHODS[[method]]
 
     fun <- case[[1]]
-    if ("DataOrDistances" %in% names(formals(fun)))
-        args <- list(DataOrDistances=d)
-    else
-        args <- list(Data=data)
-    
-    args <- c(args, ClusterNo=k, case[-1])
 
     for (k in Ks) {
-        tryCatch({
+        if ("DataOrDistances" %in% names(formals(fun)))
+            args <- list(DataOrDistances=d)
+        else
+            args <- list(Data=data)
+        
+        args <- c(args, ClusterNo=k, case[-1])
+
+        ## tryCatch({
             y_pred <- as.integer(do.call(fun, args)[["Cls"]])
+
+            ## stopifnot(y_pred > 0, max(y_pred) == k)
             
-            .t <- tabulate(y_pred)
-            stopifnot(y_pred > 0, length(.t) == k, .t > 0)
-            
-            res[[k]] <- as.integer(y_pred)
-        }, error=function(e) print(e))
+            res[[as.character(k)]] <- as.integer(y_pred)
+        ## }, error= function(x) {
+        ##     res[[as.character(k)]] <- rep(NA, length(y_pred))
+        ## })
     }
-    return(do.call(rbind.data.frame, res))
+    return(do.call('cbind.data.frame', res))
 }
 
 
 truth = load_labels(args[['data.true_labels']])
-k = int(max(truth)) # true number of clusters
+
+k = max(truth) # true number of clusters
 Ks = c(k-2, k-1, k, k+1, k+2) # ks tested, including the true number
 
-do_fcps(data = load_dataset(args[['data.matrix']]))
+res <- do_fcps(data = load_dataset(args[['data.matrix']]), method = args[['method']], Ks = Ks)
 
-# save
+colnames(res) <- paste0('k=', Ks)
+    
+gz = gzfile(file.path(args[['output_dir']], paste0(args[['name']], "_ks_range.labels.gz")), "w")
+write.table(file = gz, res, col.names = TRUE, row.names = FALSE, sep = ",")
+close(gz)
+
