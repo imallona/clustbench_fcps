@@ -113,6 +113,7 @@ truth = load_labels(args[['data.true_labels']])
 
 k = max(truth) # true number of clusters
 Ks = c(k-2, k-1, k, k+1, k+2) # ks tested, including the true number
+Ks[Ks < 2] <- 2 ## but we never run k < 2; those are replaced by a k=2 run (to not skip the calculation)
 
 res <- do_fcps(data = load_dataset(args[['data.matrix']]), method = args[['method']], Ks = Ks)
 
