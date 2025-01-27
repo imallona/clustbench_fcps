@@ -93,17 +93,19 @@ do_fcps <- function(data, Ks, method){
             args <- list(DataOrDistances=d)
         else
             args <- list(Data=data)
+
+        k_id = paste0(k, '_', sample(LETTERS, 10, TRUE), collapse = "")
         
         args <- c(args, ClusterNo=k, case[-1])
 
         y_pred <- as.integer(do.call(fun, args)[["Cls"]])
 
         if (min(y_pred) > 0 && max(y_pred) == k) {
-            res[[as.character(k)]] <- as.integer(y_pred)
+            res[[k_id]] <- as.integer(y_pred)
         }
         else {
             ## error means all are assigned to the same cluster
-            res[[as.character(k)]] <- rep(k, length(y_pred))
+            res[[k_id]] <- rep(k, length(y_pred))
         }
     }
     return(do.call('cbind.data.frame', res))
@@ -116,6 +118,7 @@ Ks = c(k-2, k-1, k, k+1, k+2) # ks tested, including the true number
 Ks[Ks < 2] <- 2 ## but we never run k < 2; those are replaced by a k=2 run (to not skip the calculation)
 
 res <- do_fcps(data = load_dataset(args[['data.matrix']]), method = args[['method']], Ks = Ks)
+print(dim(res))
 
 colnames(res) <- paste0('k=', Ks)
     
