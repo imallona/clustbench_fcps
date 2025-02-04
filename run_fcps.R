@@ -81,7 +81,8 @@ do_fcps <- function(data, Ks, method){
         stop('Not a valid method')
     
     d <- as.matrix(dist(data))
-
+    data <- as.matrix(data)
+    
     res <- list()
 
     case <- VALID_METHODS[[method]]
@@ -93,11 +94,13 @@ do_fcps <- function(data, Ks, method){
             args <- list(DataOrDistances=d)
         else
             args <- list(Data=data)
-
+        
         k_id = paste0(k, '_', sample(LETTERS, 10, TRUE), collapse = "")
         
         args <- c(args, ClusterNo=k, case[-1])
 
+        print(fun)
+        print(args)
         y_pred <- as.integer(do.call(fun, args)[["Cls"]])
 
         if (min(y_pred) > 0 && max(y_pred) == k) {
