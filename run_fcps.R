@@ -65,6 +65,12 @@ VALID_METHODS <- list(
     FCPS_PAM=list(PAMclustering) #  cluster::pam Partitioning Around Medoids (PAM)
 )
 
+FORBIDDEN_METHOD_DATA_COMBOS <- list(
+  list(method = "FCPS_HDBSCAN_8", name = "uci_sonar"),
+  list(method = "FCPS_HDBSCAN_8", name = "other_iris_5"),
+  list(method = "FCPS_Fanny", name = "other_chameleon_t4_8k"),
+  list(method = "FCPS_Fanny", name = "sipu_unbalance")
+)
 
 load_labels <- function(data_file) {
     (fd <- read.table(gzfile(data_file), header = FALSE)$V1)
@@ -112,6 +118,12 @@ do_fcps <- function(data, Ks, method){
         }
     }
     return(do.call('cbind.data.frame', res))
+}
+
+for (fc in FORBIDDEN_METHOD_DATA_COMBOS) {
+  if (identical(fc$method, args$method) && identical(fc$name, args$name)) {
+    stop(sprintf("Method '%s' is not supported for dataset '%s'. Failing fast.", args$method, args$name))
+  }
 }
 
 truth = load_labels(args[['data.true_labels']])
