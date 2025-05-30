@@ -79,10 +79,13 @@ load_dataset <- function(data_file) {
 do_fcps <- function(data, Ks, method){
     if (!method %in% names(VALID_METHODS))
         stop('Not a valid method')
-    
+
+    # https://github.com/gagolews/clustering-results-v1/blob/master/.devel/do_benchmark_r_aux.R#L29
+    set.seed(123)
+
     d <- as.matrix(dist(data))
     data <- as.matrix(data)
-    
+
     res <- list()
 
     case <- VALID_METHODS[[method]]
@@ -94,9 +97,9 @@ do_fcps <- function(data, Ks, method){
             args <- list(DataOrDistances=d)
         else
             args <- list(Data=data)
-        
+
         k_id = paste0(k, '_', sample(LETTERS, 10, TRUE), collapse = "")
-        
+
         args <- c(args, ClusterNo=k, case[-1])
 
         print(fun)
@@ -124,7 +127,7 @@ res <- do_fcps(data = load_dataset(args[['data.matrix']]), method = args[['metho
 print(dim(res))
 
 colnames(res) <- paste0('k=', Ks)
-    
+
 gz = gzfile(file.path(args[['output_dir']], paste0(args[['name']], "_ks_range.labels.gz")), "w")
 write.table(file = gz, res, col.names = TRUE, row.names = FALSE, sep = ",")
 close(gz)
