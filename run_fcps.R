@@ -8,6 +8,9 @@
 library(argparse)
 library(FCPS)
 
+SEED <- 819797
+set.seed(SEED)
+
 parser <- ArgumentParser(description="FCPS caller")
 
 
@@ -81,8 +84,7 @@ do_fcps <- function(data, Ks, method){
         stop('Not a valid method')
     
     d <- as.matrix(dist(data))
-    data <- as.matrix(data)
-    
+    data <- as.matrix(data)    
     res <- list()
 
     case <- VALID_METHODS[[method]]
@@ -99,8 +101,7 @@ do_fcps <- function(data, Ks, method){
         
         args <- c(args, ClusterNo=k, case[-1])
 
-        print(fun)
-        print(args)
+        set.seed(SEED)
         y_pred <- as.integer(do.call(fun, args)[["Cls"]])
 
         if (min(y_pred) > 0 && max(y_pred) == k) {
@@ -114,18 +115,17 @@ do_fcps <- function(data, Ks, method){
     return(do.call('cbind.data.frame', res))
 }
 
-truth = load_labels(args[['data.true_labels']])
+truth <- load_labels(args[['data.true_labels']])
 
-k = max(truth) # true number of clusters
-Ks = c(k-2, k-1, k, k+1, k+2) # ks tested, including the true number
+k <- max(truth) # true number of clusters
+Ks <- c(k-2, k-1, k, k+1, k+2) # ks tested, including the true number
 Ks[Ks < 2] <- 2 ## but we never run k < 2; those are replaced by a k=2 run (to not skip the calculation)
 
+set.seed(SEED)
 res <- do_fcps(data = load_dataset(args[['data.matrix']]), method = args[['method']], Ks = Ks)
-print(dim(res))
 
 colnames(res) <- paste0('k=', Ks)
     
 gz = gzfile(file.path(args[['output_dir']], paste0(args[['name']], "_ks_range.labels.gz")), "w")
 write.table(file = gz, res, col.names = TRUE, row.names = FALSE, sep = ",")
 close(gz)
-
