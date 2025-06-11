@@ -20,6 +20,7 @@ parser$add_argument('--data.true_labels',
 parser$add_argument("--output_dir", "-o", dest="output_dir", type="character", help="output directory where files will be saved", default=getwd())
 parser$add_argument("--name", "-n", dest="name", type="character", help="name of the dataset")
 parser$add_argument("--method", "-m", dest="method", type="character", help="method")
+parser$add_argument("--seed", dest="seed", type="integer", help="random seed for reproducibility", default=123)
 
 args <- parser$parse_args()
 
@@ -76,12 +77,12 @@ load_dataset <- function(data_file) {
 
 
 
-do_fcps <- function(data, Ks, method){
+do_fcps <- function(data, Ks, method, seed=123){
     if (!method %in% names(VALID_METHODS))
         stop('Not a valid method')
 
     # https://github.com/gagolews/clustering-results-v1/blob/master/.devel/do_benchmark_r_aux.R#L29
-    set.seed(123)
+    set.seed(seed)
 
     d <- as.matrix(dist(data))
     data <- as.matrix(data)
@@ -123,7 +124,10 @@ k = max(truth) # true number of clusters
 Ks = c(k-2, k-1, k, k+1, k+2) # ks tested, including the true number
 Ks[Ks < 2] <- 2 ## but we never run k < 2; those are replaced by a k=2 run (to not skip the calculation)
 
-res <- do_fcps(data = load_dataset(args[['data.matrix']]), method = args[['method']], Ks = Ks)
+res <- do_fcps(data = load_dataset(args[['data.matrix']]),
+               method = args[['method']],
+               Ks = Ks,
+               seed = args[['seed']])
 print(dim(res))
 
 colnames(res) <- paste0('k=', Ks)
@@ -131,4 +135,3 @@ colnames(res) <- paste0('k=', Ks)
 gz = gzfile(file.path(args[['output_dir']], paste0(args[['name']], "_ks_range.labels.gz")), "w")
 write.table(file = gz, res, col.names = TRUE, row.names = FALSE, sep = ",")
 close(gz)
-
