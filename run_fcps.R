@@ -110,7 +110,7 @@ do_fcps <- function(data, Ks, method) {
         
         args <- c(args, ClusterNo=k, case[-1])
         
-        y_pred <- as.integer(do.call(pin_seed(fun, args$seed), args)[["Cls"]])
+        y_pred <- as.integer(withSeed(expr = { do.call(fun, args) }, seed = args$seed)[["Cls"]])
 
         if (min(y_pred) > 0 && max(y_pred) == k) {
             res[[k_id]] <- as.integer(y_pred)
