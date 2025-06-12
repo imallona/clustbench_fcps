@@ -69,7 +69,7 @@ VALID_METHODS <- list(
     FCPS_Fanny=list(FannyClustering, maxit=2000), # cluster::fanny Fuzzy Analysis Clustering
     FCPS_Hardcl=list(HCLclustering), # cclust::cclust(method="hardcl") On-line Update (Hard Competitive learning convex clustering) method
     FCPS_Softcl=list(NeuralGasClustering), # cclust::cclust(method="neuralgas")  Neural Gas (Soft Competitive learning)
-    FCPS_Clara=list(LargeApplicationClustering, Standardization=FALSE), # cluster::clara Clustering Large Applications - based on Partitioning Around Medoids on subsets
+    FCPS_Clara=list(LargeApplicationClustering, Standardization=FALSE,Random=FALSE), # cluster::clara Clustering Large Applications - based on Partitioning Around Medoids on subsets
     FCPS_PAM=list(PAMclustering) #  cluster::pam Partitioning Around Medoids (PAM)
 )
 
