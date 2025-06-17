@@ -4,6 +4,8 @@
 
 ## Takes the true number of clusters into account and outputs a 2D matrix with as many columns as ks tested,
 ## being true number of clusters `k` and tested range `k plusminus 2`
+##
+## Caution Hardcl and Softcl don't look deterministic! do not run them
 
 library(argparse)
 library(FCPS)
@@ -30,6 +32,7 @@ parser$add_argument("--method", "-m", dest="method", type="character", help="met
 
 args <- parser$parse_args()
 
+set.seed(args$seed)
 
 VALID_METHODS <- list(
     # Affinity propagation (Apclustering) - does not allow k
@@ -67,9 +70,10 @@ VALID_METHODS <- list(
     FCPS_HDBSCAN_8=list(HierarchicalClustering, "HDBSCAN", minPts=8),
     FCPS_Diana=list(DivisiveAnalysisClustering), # cluster::diana DIvisive ANAlysis Clustering
     FCPS_Fanny=list(FannyClustering, maxit=2000), # cluster::fanny Fuzzy Analysis Clustering
-    FCPS_Hardcl=list(HCLclustering), # cclust::cclust(method="hardcl") On-line Update (Hard Competitive learning convex clustering) method
-    FCPS_Softcl=list(NeuralGasClustering), # cclust::cclust(method="neuralgas")  Neural Gas (Soft Competitive learning)
-    FCPS_Clara=list(LargeApplicationClustering, Standardization=FALSE,Random=FALSE), # cluster::clara Clustering Large Applications - based on Partitioning Around Medoids on subsets
+    FCPS_Hardcl=list(HCLclustering), # cclust::cclust(method="hardcl") On-line Update (Hard Competitive learning convex clustering) method ## caution this is not deterministic
+    FCPS_Softcl=list(NeuralGasClustering), # cclust::cclust(method="neuralgas")  Neural Gas (Soft Competitive learning)                    ## caution this is not deterministic
+    
+    FCPS_Clara=list(LargeApplicationClustering, Standardization=FALSE,Random=FALSE), # cluster::clara Clustering Large Applications - based on Partitioning Around Medoids on subsets; ## caution Random=FALSE is needed for seeds to be propagated
     FCPS_PAM=list(PAMclustering) #  cluster::pam Partitioning Around Medoids (PAM)
 )
 
@@ -82,12 +86,6 @@ load_dataset <- function(data_file) {
     (fd <- read.table(gzfile(data_file), header = FALSE))
 }
 
-pin_seed <- function(fun, seed) {
-    return(R.utils::withSeed(expr = {
-        fun
-    },
-    seed = seed, kind = "default"))
-}
 
 do_fcps <- function(data, Ks, method) {
     if (!method %in% names(VALID_METHODS))
@@ -99,27 +97,39 @@ do_fcps <- function(data, Ks, method) {
     res <- list()
     case <- VALID_METHODS[[method]]
     fun <- case[[1]]
-    
-    for (k in Ks) {
+
+    last_k <- 0
+    for (i in 1:length(Ks)) {
+        cat('current Ks index is ', i, 'and k is ', k, '\n')
+        k <- Ks[i]
+        
         if ("DataOrDistances" %in% names(formals(fun)))
             args <- list(DataOrDistances=d)
         else
-            args <- list(Data=data)
-        
-        k_id <- paste0(k, '_', sample(LETTERS, 10, TRUE), collapse = "")
+            args <- list(Data=data)        
         
         args <- c(args, ClusterNo=k, case[-1])
-        
-        y_pred <- as.integer(withSeed(expr = { do.call(fun, args) }, seed = args$seed)[["Cls"]])
+
+        y_pred <- as.integer(withSeed(expr = { do.call(fun, args) }, seed = args$seed, kind = 'default')[["Cls"]])
 
         if (min(y_pred) > 0 && max(y_pred) == k) {
-            res[[k_id]] <- as.integer(y_pred)
+            res[[paste('k ', k, 'i ',  i)]] <- y_pred
         }
         else {
             ## error means all are assigned to the same cluster
-            res[[k_id]] <- rep(k, length(y_pred))
+            res[[paste('k ', k, 'i ', i)]] <- rep(k, length(y_pred))
         }
+
+        ## double check repeated ks are consistent
+        if (k == last_k) {
+            stopifnot(identical(res[[i]], res[[(i-1)]]))
+            cat('   repeated k results are consistent\n')
+            
+        }
+        last_k <- k
+       
     }
+    
     return(do.call('cbind.data.frame', res))
 }
 
@@ -127,7 +137,13 @@ truth <- load_labels(args[['data.true_labels']])
 
 k <- max(truth) # true number of clusters
 Ks <- c(k-2, k-1, k, k+1, k+2) # ks tested, including the true number
+
+cat('original Ks grid: ', Ks, '\n')
+
 Ks[Ks < 2] <- 2 ## but we never run k < 2; those are replaced by (extra) k=2 runs (not to skip the calculation)
+
+cat('refined Ks grid:  ', Ks, '\n')
+
 
 res <- do_fcps(data = load_dataset(args[['data.matrix']]), method = args[['method']], Ks = Ks)
 
