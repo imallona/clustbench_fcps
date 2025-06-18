@@ -5,10 +5,10 @@
 ## Takes the true number of clusters into account and outputs a 2D matrix with as many columns as ks tested,
 ## being true number of clusters `k` and tested range `k plusminus 2`
 
+
 library(argparse)
 library(FCPS)
-
-SEED <- 819797
+## library(R.utils)
 
 parser <- ArgumentParser(description="FCPS caller")
 
@@ -19,11 +19,19 @@ parser$add_argument('--data.matrix',
 parser$add_argument('--data.true_labels',
                     type="character",
                     help='gz-compressed textfile with the true labels; used to select a range of ks.')
-parser$add_argument("--output_dir", "-o", dest="output_dir", type="character", help="output directory where files will be saved", default=getwd())
+parser$add_argument('--seed',
+                    type="integer",
+                    help='Random seed',
+                    default = 819797,
+                    dest = 'seed')
+parser$add_argument("--output_dir", "-o", dest="output_dir", type="character",
+                    help="output directory where files will be saved", default=getwd())
 parser$add_argument("--name", "-n", dest="name", type="character", help="name of the dataset")
 parser$add_argument("--method", "-m", dest="method", type="character", help="method")
 
 args <- parser$parse_args()
+
+
 
 VALID_METHODS <- list(
     # Affinity propagation (Apclustering) - does not allow k
@@ -61,9 +69,10 @@ VALID_METHODS <- list(
     FCPS_HDBSCAN_8=list(HierarchicalClustering, "HDBSCAN", minPts=8),
     FCPS_Diana=list(DivisiveAnalysisClustering), # cluster::diana DIvisive ANAlysis Clustering
     FCPS_Fanny=list(FannyClustering, maxit=2000), # cluster::fanny Fuzzy Analysis Clustering
-    FCPS_Hardcl=list(HCLclustering), # cclust::cclust(method="hardcl") On-line Update (Hard Competitive learning convex clustering) method
-    FCPS_Softcl=list(NeuralGasClustering), # cclust::cclust(method="neuralgas")  Neural Gas (Soft Competitive learning)
-    FCPS_Clara=list(LargeApplicationClustering, Standardization=FALSE), # cluster::clara Clustering Large Applications - based on Partitioning Around Medoids on subsets
+    FCPS_Hardcl=list(HCLclustering), # cclust::cclust(method="hardcl") On-line Update (Hard Competitive learning convex clustering) method 
+    FCPS_Softcl=list(NeuralGasClustering), # cclust::cclust(method="neuralgas")  Neural Gas (Soft Competitive learning) 
+    
+    FCPS_Clara=list(LargeApplicationClustering, Standardization=FALSE,Random=TRUE), # cluster::clara Clustering Large Applications - based on Partitioning Around Medoids on subsets; 
     FCPS_PAM=list(PAMclustering) #  cluster::pam Partitioning Around Medoids (PAM)
 )
 
@@ -77,7 +86,12 @@ load_dataset <- function(data_file) {
 }
 
 
-do_fcps <- function(data, Ks, method){
+pin_seed <- function(fun, args, seed) {
+    set.seed(seed)
+    eval(as.call(c(fun, args)))
+}
+
+do_fcps <- function(data, Ks, method, seed) {
     if (!method %in% names(VALID_METHODS))
         stop('Not a valid method')
     
@@ -85,46 +99,61 @@ do_fcps <- function(data, Ks, method){
     data <- as.matrix(data)
     
     res <- list()
-
     case <- VALID_METHODS[[method]]
-
     fun <- case[[1]]
 
-    for (k in Ks) {
+    last_k <- 0
+    for (i in 1:length(Ks)) {
+        cat('current Ks index is ', i, 'and k is ', k, '\n')
+        k <- Ks[i]
+        
         if ("DataOrDistances" %in% names(formals(fun)))
             args <- list(DataOrDistances=d)
         else
-            args <- list(Data=data)
-        
-        k_id = paste0(k, '_', sample(LETTERS, 10, TRUE), collapse = "")
+            args <- list(Data=data)        
         
         args <- c(args, ClusterNo=k, case[-1])
 
-        y_pred <- as.integer(do.call(fun, args)[["Cls"]])
+        y_pred <- as.integer(pin_seed(fun, args, seed)[['Cls']])
 
+        print(table(y_pred))
         if (min(y_pred) > 0 && max(y_pred) == k) {
-            res[[k_id]] <- as.integer(y_pred)
+            res[[paste('k ', k, 'i ',  i)]] <- y_pred
         }
         else {
             ## error means all are assigned to the same cluster
-            res[[k_id]] <- rep(k, length(y_pred))
+            res[[paste('k ', k, 'i ', i)]] <- rep(k, length(y_pred))
         }
+
+        ## double check repeated ks are consistent
+        if (k == last_k) {
+            stopifnot(identical(res[[i]], res[[(i-1)]]))
+            cat('   repeated k results are consistent\n')
+            
+        }
+        last_k <- k
+       
     }
+    
     return(do.call('cbind.data.frame', res))
 }
 
-truth = load_labels(args[['data.true_labels']])
+truth <- load_labels(args[['data.true_labels']])
 
-k = max(truth) # true number of clusters
-Ks = c(k-2, k-1, k, k+1, k+2) # ks tested, including the true number
-Ks[Ks < 2] <- 2 ## but we never run k < 2; those are replaced by a k=2 run (to not skip the calculation)
+k <- max(truth) # true number of clusters
+Ks <- c(k-2, k-1, k, k+1, k+2) # ks tested, including the true number
 
-set.seed(SEED)
-res <- do_fcps(data = load_dataset(args[['data.matrix']]), method = args[['method']], Ks = Ks)
-print(dim(res))
+cat('original Ks grid: ', Ks, '\n')
+
+Ks[Ks < 2] <- 2 ## but we never run k < 2; those are replaced by (extra) k=2 runs (not to skip the calculation)
+
+cat('refined Ks grid:  ', Ks, '\n')
+
+
+res <- do_fcps(data = load_dataset(args[['data.matrix']]), method = args[['method']], Ks = Ks, seed = args$seed)
 
 colnames(res) <- paste0('k=', Ks)
     
-gz = gzfile(file.path(args[['output_dir']], paste0(args[['name']], "_ks_range.labels.gz")), "w")
+gz <- gzfile(file.path(args[['output_dir']], paste0(args[['name']], "_ks_range.labels.gz")), "w")
 write.table(file = gz, res, col.names = TRUE, row.names = FALSE, sep = ",")
 close(gz)
