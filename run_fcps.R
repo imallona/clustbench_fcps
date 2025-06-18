@@ -4,12 +4,11 @@
 
 ## Takes the true number of clusters into account and outputs a 2D matrix with as many columns as ks tested,
 ## being true number of clusters `k` and tested range `k plusminus 2`
-##
-## Caution Hardcl and Softcl don't look deterministic! do not run them
+
 
 library(argparse)
 library(FCPS)
-library(R.utils)
+## library(R.utils)
 
 parser <- ArgumentParser(description="FCPS caller")
 
@@ -32,7 +31,7 @@ parser$add_argument("--method", "-m", dest="method", type="character", help="met
 
 args <- parser$parse_args()
 
-set.seed(args$seed)
+
 
 VALID_METHODS <- list(
     # Affinity propagation (Apclustering) - does not allow k
@@ -70,10 +69,10 @@ VALID_METHODS <- list(
     FCPS_HDBSCAN_8=list(HierarchicalClustering, "HDBSCAN", minPts=8),
     FCPS_Diana=list(DivisiveAnalysisClustering), # cluster::diana DIvisive ANAlysis Clustering
     FCPS_Fanny=list(FannyClustering, maxit=2000), # cluster::fanny Fuzzy Analysis Clustering
-    FCPS_Hardcl=list(HCLclustering), # cclust::cclust(method="hardcl") On-line Update (Hard Competitive learning convex clustering) method ## caution this is not deterministic
-    FCPS_Softcl=list(NeuralGasClustering), # cclust::cclust(method="neuralgas")  Neural Gas (Soft Competitive learning)                    ## caution this is not deterministic
+    FCPS_Hardcl=list(HCLclustering), # cclust::cclust(method="hardcl") On-line Update (Hard Competitive learning convex clustering) method 
+    FCPS_Softcl=list(NeuralGasClustering), # cclust::cclust(method="neuralgas")  Neural Gas (Soft Competitive learning) 
     
-    FCPS_Clara=list(LargeApplicationClustering, Standardization=FALSE,Random=FALSE), # cluster::clara Clustering Large Applications - based on Partitioning Around Medoids on subsets; ## caution Random=FALSE is needed for seeds to be propagated
+    FCPS_Clara=list(LargeApplicationClustering, Standardization=FALSE,Random=TRUE), # cluster::clara Clustering Large Applications - based on Partitioning Around Medoids on subsets; 
     FCPS_PAM=list(PAMclustering) #  cluster::pam Partitioning Around Medoids (PAM)
 )
 
@@ -87,7 +86,12 @@ load_dataset <- function(data_file) {
 }
 
 
-do_fcps <- function(data, Ks, method) {
+pin_seed <- function(fun, args, seed) {
+    set.seed(seed)
+    eval(as.call(c(fun, args)))
+}
+
+do_fcps <- function(data, Ks, method, seed) {
     if (!method %in% names(VALID_METHODS))
         stop('Not a valid method')
     
@@ -110,8 +114,9 @@ do_fcps <- function(data, Ks, method) {
         
         args <- c(args, ClusterNo=k, case[-1])
 
-        y_pred <- as.integer(withSeed(expr = { do.call(fun, args) }, seed = args$seed, kind = 'default')[["Cls"]])
+        y_pred <- as.integer(pin_seed(fun, args, seed)[['Cls']])
 
+        print(table(y_pred))
         if (min(y_pred) > 0 && max(y_pred) == k) {
             res[[paste('k ', k, 'i ',  i)]] <- y_pred
         }
@@ -145,7 +150,7 @@ Ks[Ks < 2] <- 2 ## but we never run k < 2; those are replaced by (extra) k=2 run
 cat('refined Ks grid:  ', Ks, '\n')
 
 
-res <- do_fcps(data = load_dataset(args[['data.matrix']]), method = args[['method']], Ks = Ks)
+res <- do_fcps(data = load_dataset(args[['data.matrix']]), method = args[['method']], Ks = Ks, seed = args$seed)
 
 colnames(res) <- paste0('k=', Ks)
     
